@@ -23,6 +23,7 @@ fun MusicPlayerRouter(
         onNextClick = { viewModel.next() },
         onSeek = { position -> viewModel.seekTo(position) },
         audiusMusicList = uiState.audiusTracks,
-        onClickMusic = { viewModel.playAudiusTrack(it) }
+        currentTrack = uiState.currentTrack,
+        onClickMusic = { track -> viewModel.playPause(track) }
     )
 }

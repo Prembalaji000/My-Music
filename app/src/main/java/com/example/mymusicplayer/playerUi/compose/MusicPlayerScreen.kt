@@ -1,5 +1,10 @@
 package com.example.mymusicplayer.playerUi.compose
 
+import android.util.Log
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,27 +13,51 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
+import coil3.request.crossfade
 import com.example.mymusicplayer.model.AudiusTrack
 
 @Preview
@@ -45,6 +74,7 @@ fun MusicPlayerScreenPreview(){
         onPlayPauseClick = {},
         onSeek = {},
         audiusMusicList = null,
+        currentTrack = null,
         onClickMusic = {}
     )
 }
@@ -61,23 +91,60 @@ fun MusicPlayerScreen(
     onNextClick: () -> Unit,
     onSeek: (Long) -> Unit,
     audiusMusicList: List<AudiusTrack>?,
-    onClickMusic: (AudiusTrack) -> Unit
+    currentTrack: AudiusTrack?,
+    onClickMusic: (AudiusTrack?) -> Unit
 ){
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-    ) {
-        LazyColumn {
-            items(audiusMusicList?: emptyList()){
-                MusicListComponent(
-                    name = it.title?:"",
-                    onClickMusic = {
-                        onClickMusic(it)
+    Scaffold(
+        topBar = {
+            MusicScreenTopBar()
+        },
+        content = { paddingValues ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .background(Color(0xFFE8ECEF))
+            ) {
+                LazyColumn {
+                    item {
+                        Text(
+                            modifier = Modifier
+                                .padding(14.dp),
+                            text = "Music List",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+                    items(
+                        items = audiusMusicList ?: emptyList(),
+                        key = { it.id }
+                    ) { track ->
+                        MusicListComponent(
+                            name = track.title.orEmpty(),
+                            artiestName = track.artistName,
+                            time = formatDuration(track.duration?.toLong()?:0),
+                            onClickMusic = {
+                                onClickMusic(track)
+                            },
+                            isPlaying = track.isPlaying
+                        )
+                    }
+                }
+            }
+        },
+        bottomBar = {
+            AnimatedVisibility(currentTrack != null) {
+                PlayerComponent(
+                    musicName = currentTrack?.title,
+                    artiestName = currentTrack?.artistName,
+                    isPlaying = currentTrack?.isPlaying,
+                    coverImage = currentTrack?.coverPhotoUrl,
+                    onPlayPauseClick = {
+                        onClickMusic(currentTrack)
                     }
                 )
             }
         }
-    }
+    )
     /*Column(
         modifier = Modifier
             .fillMaxSize()
@@ -164,12 +231,18 @@ fun MusicPlayerScreen(
     }*/
 }
 
-fun formatDuration(milliseconds: Long): String {
-    val totalSeconds = milliseconds / 1000
-    val minutes = totalSeconds / 60
+fun formatDuration(duration: Long?): String {
+    val totalSeconds = duration ?: 0L
+
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
     val seconds = totalSeconds % 60
 
-    return "%02d:%02d".format(minutes, seconds)
+    return if (hours > 0) {
+        "%02d:%02d:%02d".format(hours, minutes, seconds)
+    } else {
+        "%02d:%02d".format(minutes, seconds)
+    }
 }
 
 @Preview
@@ -177,7 +250,10 @@ fun formatDuration(milliseconds: Long): String {
 fun MusicListComponentPreview(){
     MusicListComponent(
         name = "Justin",
-        onClickMusic = {}
+        artiestName = "Justin",
+        time = "2:23",
+        onClickMusic = {},
+        isPlaying = true
     )
 }
 
@@ -185,20 +261,266 @@ fun MusicListComponentPreview(){
 @Composable
 fun MusicListComponent(
     name: String,
-    onClickMusic: () -> Unit
+    artiestName: String,
+    time: String,
+    onClickMusic: () -> Unit,
+    isPlaying: Boolean
 ){
+    val gradient = Brush.linearGradient(
+        colors = listOf(
+            Color(0xFF8673FD),
+            Color(0xFF5C42FF)
+        )
+    )
     Card(
-        onClick = onClickMusic
+        modifier = Modifier
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        onClick = onClickMusic,
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
+        )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 12.dp, horizontal = 6.dp),
+                .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            IconButton(
+                onClick = onClickMusic
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .then(
+                            if (isPlaying){
+                                Modifier.background(gradient)
+                            } else {
+                                Modifier.border(
+                                    width = 1.dp,
+                                    color = Color(0xFF5C42FF),
+                                    shape = CircleShape
+                                )
+                            }
+                        )
+                ) {
+                    Icon(
+                        modifier = Modifier.padding(8.dp),
+                        imageVector = if (isPlaying){
+                            Icons.Rounded.Pause
+                        } else {
+                            Icons.Rounded.PlayArrow
+                        },
+                        contentDescription = null,
+                        tint = if (isPlaying) Color.White else Color(0xFF5C42FF)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = name,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.titleSmall
+                )
+
+                Text(
+                    text = artiestName,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
             Text(
-                text = name
+                text = time,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray
             )
+        }
+    }
+}
+
+@Preview
+@Composable
+fun MusicScreenTopBarPreview(){
+    MusicScreenTopBar()
+}
+
+
+@Composable
+fun MusicScreenTopBar(){
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFFE8ECEF))
+            .padding(top = 26.dp)
+    ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                IconButton(
+                    onClick = {}
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Search,
+                        contentDescription = null
+                    )
+                }
+                IconButton(
+                    onClick = {}
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.MoreVert,
+                        contentDescription = null
+                    )
+                }
+            }
+            Text(
+                modifier = Modifier
+                    .padding(14.dp),
+                text = "Browse",
+                style = MaterialTheme.typography.titleLarge
+            )
+        }
+    }
+}
+
+@Preview
+@Composable
+fun PlayerComponentPreview(){
+    PlayerComponent(
+        musicName = "Different world",
+        artiestName = "Travis scott",
+        isPlaying = true,
+        coverImage = "",
+        onPlayPauseClick = {}
+    )
+}
+
+@Composable
+fun PlayerComponent(
+    musicName: String?,
+    artiestName: String?,
+    isPlaying: Boolean?,
+    coverImage: String?,
+    onPlayPauseClick: () -> Unit
+){
+    val gradient = Brush.linearGradient(
+        colors = listOf(
+            Color(0xFF8673FD),
+            Color(0xFF5C42FF)
+        )
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+            .padding(16.dp)
+            .navigationBarsPadding()
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .border(
+                        width = 1.dp,
+                        color = Color(0xFF5C42FF),
+                        shape = CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                if (coverImage.isNullOrBlank()) {
+                    Icon(
+                        modifier = Modifier.padding(8.dp),
+                        imageVector = Icons.Rounded.Image,
+                        contentDescription = null
+                    )
+                } else {
+                    AsyncImage(
+                        model = coverImage,
+                        contentDescription = "Album artwork",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                        onError = {
+                            Log.e(
+                                "AudiusImage",
+                                "Image loading failed: ${it.result.throwable}"
+                            )
+                        }
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = musicName.orEmpty(),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.titleSmall
+                )
+
+                Text(
+                    text = artiestName.orEmpty(),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .then(
+                        if (isPlaying == true){
+                            Modifier.background(gradient)
+                        } else {
+                            Modifier.border(
+                                width = 1.dp,
+                                color = Color(0xFF5C42FF),
+                                shape = CircleShape
+                            )
+                        }
+                    )
+                    .clickable(
+                        onClick = onPlayPauseClick
+                    )
+            ) {
+                Icon(
+                    modifier = Modifier.padding(8.dp),
+                    imageVector = if (isPlaying == true){
+                        Icons.Rounded.Pause
+                    } else {
+                        Icons.Rounded.PlayArrow
+                    },
+                    contentDescription = null,
+                    tint = if (isPlaying == true) Color.White else Color(0xFF5C42FF)
+                )
+            }
         }
     }
 }
