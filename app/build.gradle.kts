@@ -74,4 +74,9 @@ dependencies {
     //coil
     implementation(libs.coil.compose)
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.3.0")
+
+    //Material3 navigation
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.androidx.navigation3.runtime)
+    implementation(libs.androidx.navigation3.ui)
 }

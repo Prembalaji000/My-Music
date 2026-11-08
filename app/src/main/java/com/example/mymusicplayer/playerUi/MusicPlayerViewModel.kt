@@ -275,9 +275,41 @@ class MusicPlayerViewModel @Inject constructor(
             )
             .build()
 
+        val trackDurationMs = (track.duration?.toLong() ?: 0L) * 1000L
+        viewModelState.update { currentState ->
+            val updatedTracks = currentState.audiusTracks?.map {
+                it.copy(isPlaying = (it.id == track.id))
+            }
+            currentState.copy(
+                currentTrack = track,
+                currentTitle = track.title.orEmpty(),
+                currentArtist = track.artistName,
+                duration = if (trackDurationMs > 0) trackDurationMs else currentState.duration,
+                currentPosition = 0L,
+                isPlaying = true,
+                audiusTracks = updatedTracks
+            )
+        }
+
         activePlayer.setMediaItem(mediaItem)
         activePlayer.prepare()
         activePlayer.play()
+    }
+
+    fun navigateToDashboard(){
+        viewModelState.update {
+            it.copy(
+                musicScreenViewState = MusicScreenViewState.DASHBOARD_VIEW
+            )
+        }
+    }
+
+    fun navigateToPlayerScreen(){
+        viewModelState.update {
+            it.copy(
+                musicScreenViewState = MusicScreenViewState.PLAYER_SCREEN_VIEW
+            )
+        }
     }
 }
 
@@ -289,7 +321,8 @@ data class MyViewModelState(
     val currentPosition: Long? = 0,
     val duration: Long? = 0,
     val audiusTracks: List<AudiusTrack>? = emptyList(),
-    val currentTrack: AudiusTrack? = null
+    val currentTrack: AudiusTrack? = null,
+    val musicScreenViewState: MusicScreenViewState? = MusicScreenViewState.DASHBOARD_VIEW
 ) {
     fun uiState() = MyUiState(
         isLoading = isLoading,
@@ -299,7 +332,8 @@ data class MyViewModelState(
         currentPosition = currentPosition,
         duration = duration,
         audiusTracks = audiusTracks,
-        currentTrack = currentTrack
+        currentTrack = currentTrack,
+        musicScreenViewState = musicScreenViewState
     )
 }
 
@@ -311,5 +345,11 @@ data class MyUiState(
     val currentPosition: Long?,
     val duration: Long?,
     val audiusTracks: List<AudiusTrack>?,
-    val currentTrack: AudiusTrack?
+    val currentTrack: AudiusTrack?,
+    val musicScreenViewState: MusicScreenViewState?
 )
+
+enum class MusicScreenViewState(val value: String){
+    DASHBOARD_VIEW("dashboard_view"),
+    PLAYER_SCREEN_VIEW("player_screen_view")
+}

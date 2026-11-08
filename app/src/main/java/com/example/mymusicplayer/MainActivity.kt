@@ -4,7 +4,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.example.mymusicplayer.playerUi.compose.MusicPlayerRouter
+import com.example.mymusicplayer.playerUi.compose.dashBoard.MusicPlayerRouter
+import com.example.mymusicplayer.playerUi.navigation.NavigationScreen
 import dagger.hilt.android.AndroidEntryPoint
 
 
@@ -19,4 +20,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onBackPressed() {
+        super.onBackPressed()
+
+    }
 }
