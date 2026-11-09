@@ -11,9 +11,12 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.mymusicplayer.playerUi.MusicPlayerViewModel
 import com.example.mymusicplayer.playerUi.MusicScreenViewState
+import com.example.mymusicplayer.playerUi.UiScreenState
 import com.example.mymusicplayer.playerUi.compose.playerScreen.PlayerScreen
 
 @Composable
@@ -21,6 +24,7 @@ fun MusicPlayerRouter(
     viewModel: MusicPlayerViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val dashBoardState = remember { mutableStateOf(UiScreenState.DEFAULT_VIEW) }
 
     BackHandler(enabled = uiState.musicScreenViewState == MusicScreenViewState.PLAYER_SCREEN_VIEW) {
         viewModel.navigateToDashboard()
@@ -42,20 +46,21 @@ fun MusicPlayerRouter(
         when (screenState) {
             MusicScreenViewState.DASHBOARD_VIEW -> {
                 MusicPlayerScreen(
-                    title = uiState.currentTitle ?: "",
-                    artist = uiState.currentArtist ?: "",
-                    position = uiState.currentPosition ?: 0L,
-                    duration = uiState.duration ?: 0L,
-                    isPlaying = uiState.isPlaying ?: false,
-                    onPreviousClick = { viewModel.previous() },
-                    onPlayPauseClick = { viewModel.playPause() },
-                    onNextClick = { viewModel.next() },
-                    onSeek = { position -> viewModel.seekTo(position) },
+                    isLoading = uiState.isLoading,
                     audiusMusicList = uiState.audiusTracks,
+                    audiusAlbumMusicList = uiState.audiusAlbumTracks,
                     currentTrack = uiState.currentTrack,
-                    onClickMusic = { track -> viewModel.playPause(track) },
+                    onClickMusic = { track, isAlbum -> viewModel.playPause(track, isAlbum) },
                     onClickPlayer = {
                         viewModel.navigateToPlayerScreen()
+                    },
+                    topAlbum = uiState.audiusAlbum,
+                    onAlbumClick = {
+                        viewModel.getAudiusAlbumMusic(it)
+                    },
+                    uiState = dashBoardState.value,
+                    onChangeUiState = {
+                        dashBoardState.value = it
                     }
                 )
             }
@@ -63,7 +68,7 @@ fun MusicPlayerRouter(
                 PlayerScreen(
                     musicName = uiState.currentTrack?.title,
                     artiestName = uiState.currentTrack?.artistName,
-                    musicCover = uiState.currentTrack?.coverPhotoUrl,
+                    musicCover = uiState.currentTrack?.artworkUrl,
                     position = uiState.currentPosition,
                     duration = uiState.duration,
                     onSeek = { position ->
@@ -74,10 +79,10 @@ fun MusicPlayerRouter(
                     isPlaying = uiState.currentTrack?.isPlaying,
                     onCloseClick = { viewModel.navigateToDashboard() },
                     onClickMusic = {
-                        viewModel.playPause(uiState.currentTrack)
+                        viewModel.playPause(uiState.currentTrack, dashBoardState.value == UiScreenState.ALBUM_VIEW)
                     },
-                    onPreviousClick = { viewModel.previous() },
-                    onNextClick = { viewModel.next() }
+                    onPreviousClick = { viewModel.previous(dashBoardState.value == UiScreenState.ALBUM_VIEW) },
+                    onNextClick = { viewModel.next(dashBoardState.value == UiScreenState.ALBUM_VIEW) }
                 )
             }
             else -> {}

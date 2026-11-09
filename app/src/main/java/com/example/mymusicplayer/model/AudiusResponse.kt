@@ -4,6 +4,7 @@ import com.google.gson.JsonDeserializationContext
 import com.google.gson.JsonDeserializer
 import com.google.gson.JsonElement
 import com.google.gson.annotations.JsonAdapter
+import com.google.gson.annotations.SerializedName
 import java.lang.reflect.Type
 
 data class AudiusResponse(
@@ -17,7 +18,9 @@ data class AudiusTrack(
     val artwork: AudiusArtwork?,
     val cover_photo: AudiusCoverPhoto? = null,
     val user: AudiusUser?,
-    val isPlaying: Boolean = false
+    val isPlaying: Boolean = false,
+    @SerializedName("album_backlink")
+    val playList: PlayListItem?
 ) {
     val artistName: String
         get() = user?.name.orEmpty()
@@ -113,3 +116,8 @@ data class AudiusUser(
             ?: cover_photo?.get("640x")
             ?: cover_photo?.url
 }
+
+data class PlayListItem(
+    @SerializedName("playlist_name")
+    val playListName: String?
+)

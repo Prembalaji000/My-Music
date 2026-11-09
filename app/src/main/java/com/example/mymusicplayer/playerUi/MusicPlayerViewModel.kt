@@ -10,9 +10,12 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import com.example.mymusicplayer.MusicControllerManager
 import com.example.mymusicplayer.Repository
+import com.example.mymusicplayer.model.AudiusAlbum
 import com.example.mymusicplayer.model.AudiusTrack
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,6 +24,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @HiltViewModel
@@ -88,7 +92,12 @@ class MusicPlayerViewModel @Inject constructor(
                 startProgressUpdate()
             }
         }
-        getAudiusMusic()
+        viewModelScope.launch {
+            val getAudiusAlbum = async { getAudiusAlbum() }
+            val getAudiusMusicList = async { getAudiusMusic() }
+            getAudiusAlbum.await()
+            getAudiusMusicList.await()
+        }
     }
 
     private fun startProgressUpdate() {
@@ -128,7 +137,8 @@ class MusicPlayerViewModel @Inject constructor(
         val artist = metaData?.artist?.toString().orEmpty()
 
         viewModelState.update { currentState ->
-            val updatedTracks = currentState.audiusTracks?.map { track ->
+            val trackList = if (currentState.isAlbum == true) currentState.audiusAlbumTracks else currentState.audiusTracks
+            val updatedTracks = trackList?.map { track ->
                 val trackIsPlaying = (track.id == currentMediaId) && isPlaying
                 if (track.isPlaying != trackIsPlaying) {
                     track.copy(isPlaying = trackIsPlaying)
@@ -146,7 +156,8 @@ class MusicPlayerViewModel @Inject constructor(
                 currentArtist = if (artist.isNotEmpty()) artist else currentTrack?.artistName.orEmpty(),
                 duration = if (dur > 0) dur else currentState.duration,
                 currentPosition = pos,
-                audiusTracks = updatedTracks,
+                audiusTracks = if (currentState.isAlbum == true) currentState.audiusTracks else updatedTracks,
+                audiusAlbumTracks = if (currentState.isAlbum == true) updatedTracks else currentState.audiusAlbumTracks,
                 currentTrack = currentTrack
             )
         }
@@ -156,8 +167,12 @@ class MusicPlayerViewModel @Inject constructor(
         updatePlaybackState()
     }
 
-    fun next() {
-        val tracks = viewModelState.value.audiusTracks ?: return
+    fun next(isAlbumTrack: Boolean?) {
+        val tracks = if (isAlbumTrack == true) {
+            viewModelState.value.audiusAlbumTracks ?: return
+        } else {
+            viewModelState.value.audiusTracks ?: return
+        }
         if (tracks.isEmpty()) return
         val currentMediaId = player?.currentMediaItem?.mediaId
         val currentIndex = tracks.indexOfFirst { it.id == currentMediaId }
@@ -166,11 +181,15 @@ class MusicPlayerViewModel @Inject constructor(
         } else {
             0
         }
-        playAudiusTrack(tracks[nextIndex])
+        playAudiusTrack(tracks[nextIndex], isAlbumTrack)
     }
 
-    fun previous() {
-        val tracks = viewModelState.value.audiusTracks ?: return
+    fun previous(isAlbumTrack: Boolean?) {
+        val tracks = if (isAlbumTrack == true) {
+            viewModelState.value.audiusAlbumTracks ?: return
+        } else {
+            viewModelState.value.audiusTracks ?: return
+        }
         if (tracks.isEmpty()) return
         val currentMediaId = player?.currentMediaItem?.mediaId
         val currentIndex = tracks.indexOfFirst { it.id == currentMediaId }
@@ -179,7 +198,7 @@ class MusicPlayerViewModel @Inject constructor(
         } else {
             tracks.size - 1
         }
-        playAudiusTrack(tracks[prevIndex])
+        playAudiusTrack(tracks[prevIndex], isAlbumTrack)
     }
 
     fun seekTo(position: Long) {
@@ -192,6 +211,69 @@ class MusicPlayerViewModel @Inject constructor(
         controllerManager.release()
     }
 
+    fun getAudiusAlbum(){
+        viewModelScope.launch {
+            viewModelState.update {
+                it.copy(
+                    isLoading = true,
+                )
+            }
+            val response = withContext(Dispatchers.IO){
+                repository.getTopAlbums()
+            }
+            if (response.isNotEmpty()){
+                viewModelState.update {
+                    it.copy(
+                        audiusAlbum = response,
+                        isLoading = false,
+                    )
+                }
+            } else {
+                viewModelState.update {
+                    it.copy(
+                        isLoading = false,
+                        audiusAlbum = null,
+                    )
+                }
+            }
+        }
+    }
+
+    fun getAudiusAlbumMusic(albumId: String) {
+        viewModelScope.launch {
+            viewModelState.update {
+                it.copy(
+                    isLoading = true,
+                    audiusAlbumTracks = null
+                )
+            }
+            val response = withContext(Dispatchers.IO){
+                repository.getAlbumTracks(albumId)
+            }
+            if (response.isNotEmpty()) {
+                viewModelState.update { currentState ->
+                    val currentMediaId = player?.currentMediaItem?.mediaId
+                    val isPlaying = player?.isPlaying == true
+                    val updatedTracks = response.map { track ->
+                        track.copy(isPlaying = (track.id == currentMediaId && isPlaying))
+                    }
+                    currentState.copy(
+                        isLoading = false,
+                        audiusAlbumTracks = updatedTracks,
+                    )
+                }
+            } else {
+                viewModelState.update {
+                    it.copy(
+                        isLoading = false,
+                        audiusAlbumTracks = null,
+                    )
+                }
+            }
+        }
+    }
+
+
     fun getAudiusMusic(query: String = "travis scott") {
         viewModelScope.launch {
             viewModelState.update {
@@ -199,7 +281,9 @@ class MusicPlayerViewModel @Inject constructor(
                     isLoading = true,
                 )
             }
-            val response = repository.searchTracks(query)
+            val response = withContext(Dispatchers.IO){
+                repository.searchTracks(query)
+            }
             if (response.isNotEmpty()) {
                 viewModelState.update { currentState ->
                     val currentMediaId = player?.currentMediaItem?.mediaId
@@ -223,7 +307,7 @@ class MusicPlayerViewModel @Inject constructor(
         }
     }
 
-    fun playPause(track: AudiusTrack? = null) {
+    fun playPause(track: AudiusTrack? = null, isAlbumTrack: Boolean?) {
         val activePlayer = player
         if (track == null) {
             if (activePlayer == null) return
@@ -231,7 +315,7 @@ class MusicPlayerViewModel @Inject constructor(
             if (currentMediaId == null) {
                 val firstTrack = viewModelState.value.audiusTracks?.firstOrNull()
                 if (firstTrack != null) {
-                    playAudiusTrack(firstTrack)
+                    playAudiusTrack(firstTrack, isAlbumTrack)
                 }
             } else {
                 if (activePlayer.isPlaying) {
@@ -242,10 +326,11 @@ class MusicPlayerViewModel @Inject constructor(
             }
         } else {
             if (activePlayer == null) {
-                playAudiusTrack(track)
+                playAudiusTrack(track, isAlbumTrack)
                 return
             }
             val currentMediaId = activePlayer.currentMediaItem?.mediaId
+            println("playAudiusTrack 2 ${currentMediaId == track.id}")
             if (currentMediaId == track.id) {
                 if (activePlayer.isPlaying) {
                     activePlayer.pause()
@@ -253,12 +338,12 @@ class MusicPlayerViewModel @Inject constructor(
                     activePlayer.play()
                 }
             } else {
-                playAudiusTrack(track)
+                playAudiusTrack(track, isAlbumTrack)
             }
         }
     }
 
-    fun playAudiusTrack(track: AudiusTrack?) {
+    fun playAudiusTrack(track: AudiusTrack?, isAlbumTrack: Boolean?) {
         val activePlayer = player ?: return
         if (track == null) return
         val streamUrl = "https://api.audius.co/v1/tracks/${track.id}/stream"
@@ -277,17 +362,20 @@ class MusicPlayerViewModel @Inject constructor(
 
         val trackDurationMs = (track.duration?.toLong() ?: 0L) * 1000L
         viewModelState.update { currentState ->
-            val updatedTracks = currentState.audiusTracks?.map {
+            val trackList = if (isAlbumTrack == true) currentState.audiusAlbumTracks else currentState.audiusTracks
+            val updatedTracks = trackList?.map {
                 it.copy(isPlaying = (it.id == track.id))
             }
             currentState.copy(
+                isAlbum = isAlbumTrack,
                 currentTrack = track,
                 currentTitle = track.title.orEmpty(),
                 currentArtist = track.artistName,
                 duration = if (trackDurationMs > 0) trackDurationMs else currentState.duration,
                 currentPosition = 0L,
                 isPlaying = true,
-                audiusTracks = updatedTracks
+                audiusTracks = if (isAlbumTrack == true) currentState.audiusTracks else updatedTracks,
+                audiusAlbumTracks = if (isAlbumTrack == true) updatedTracks else currentState.audiusAlbumTracks
             )
         }
 
@@ -320,7 +408,10 @@ data class MyViewModelState(
     val currentArtist: String? = "",
     val currentPosition: Long? = 0,
     val duration: Long? = 0,
+    val isAlbum: Boolean? = false,
     val audiusTracks: List<AudiusTrack>? = emptyList(),
+    val audiusAlbumTracks: List<AudiusTrack>? = emptyList(),
+    val audiusAlbum: List<AudiusAlbum>? = emptyList(),
     val currentTrack: AudiusTrack? = null,
     val musicScreenViewState: MusicScreenViewState? = MusicScreenViewState.DASHBOARD_VIEW
 ) {
@@ -331,7 +422,10 @@ data class MyViewModelState(
         currentArtist = currentArtist,
         currentPosition = currentPosition,
         duration = duration,
+        isAlbum = isAlbum,
         audiusTracks = audiusTracks,
+        audiusAlbumTracks = audiusAlbumTracks,
+        audiusAlbum = audiusAlbum,
         currentTrack = currentTrack,
         musicScreenViewState = musicScreenViewState
     )
@@ -344,7 +438,10 @@ data class MyUiState(
     val currentArtist: String?,
     val currentPosition: Long?,
     val duration: Long?,
+    val isAlbum: Boolean?,
     val audiusTracks: List<AudiusTrack>?,
+    val audiusAlbumTracks: List<AudiusTrack>?,
+    val audiusAlbum: List<AudiusAlbum>?,
     val currentTrack: AudiusTrack?,
     val musicScreenViewState: MusicScreenViewState?
 )
@@ -352,4 +449,9 @@ data class MyUiState(
 enum class MusicScreenViewState(val value: String){
     DASHBOARD_VIEW("dashboard_view"),
     PLAYER_SCREEN_VIEW("player_screen_view")
+}
+
+enum class UiScreenState(val value: String){
+    DEFAULT_VIEW("default_view"),
+    ALBUM_VIEW("album_view")
 }

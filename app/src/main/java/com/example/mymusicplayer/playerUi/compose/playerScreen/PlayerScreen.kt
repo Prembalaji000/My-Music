@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.FavoriteBorder
@@ -45,6 +46,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -92,7 +97,9 @@ fun PlayerScreen(
     Scaffold(
         containerColor = Color.White,
         topBar = {
-            PlayerTopBar(onCloseClick)
+            PlayerTopBar(
+                onCloseClick = onCloseClick
+            )
         },
         content = { paddingValues ->
             Box(
@@ -129,12 +136,16 @@ fun PlayerTopBarPreview(){
 
 @Composable
 fun PlayerTopBar(
+    isFromHome: Boolean? = false,
     onCloseClick: () -> Unit
 ){
+    val bgColor = if (isFromHome == true) Color(0xFFE8ECEF) else Color.White
+    val title = if (isFromHome == true) "Playlist" else "Now Playing"
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
+            .background(bgColor)
             .padding(top = 26.dp)
     ) {
         Row(
@@ -153,8 +164,13 @@ fun PlayerTopBar(
                 )
             }
             Text(
-                text = "Now Playing",
-                style = MaterialTheme.typography.titleLarge
+                text = title,
+                style = TextStyle(
+                    fontSize = 20.sp,
+                    fontFamily = FontFamily(Font(R.font.roboto_regular)),
+                    fontWeight = FontWeight.Medium,
+                    color = Color.Black,
+                )
             )
             IconButton(
                 onClick = {}
@@ -225,6 +241,9 @@ fun PlayerComponents(
             Color(0xFF5C42FF)
         )
     )
+    var isLoading by remember(musicCover) {
+        mutableStateOf(true)
+    }
 
     Column(
         modifier = Modifier
@@ -237,7 +256,16 @@ fun PlayerComponents(
             modifier = Modifier
                 .size(330.dp)
                 .fillMaxSize()
-                .padding(horizontal = 8.dp),
+                .padding(horizontal = 8.dp)
+                .then(
+                    if (!isLoading){
+                        Modifier
+                            .shadow(6.dp, RoundedCornerShape(8.dp))
+                            .clip(RoundedCornerShape(8.dp))
+                    } else {
+                        Modifier
+                    }
+                ),
             contentAlignment = Alignment.Center
         ) {
             if (musicCover?.isNotEmpty() == true){
@@ -245,7 +273,18 @@ fun PlayerComponents(
                     model = musicCover,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    fallback = painterResource(R.drawable.player_cover),
+                    error = painterResource(R.drawable.player_cover),
+                    onLoading = {
+                        isLoading = true
+                    },
+                    onSuccess = {
+                        isLoading = false
+                    },
+                    onError = {
+                        isLoading = false
+                    }
                 )
             } else {
                 Image(
@@ -264,16 +303,27 @@ fun PlayerComponents(
             modifier = Modifier.padding(horizontal = 24.dp),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            style = MaterialTheme.typography.titleSmall
+            style = TextStyle(
+                fontSize = 16.sp,
+                fontFamily = FontFamily(Font(R.font.roboto_regular)),
+                fontWeight = FontWeight.Normal,
+                color = Color(0xFF374151),
+            )
         )
+
+        Spacer(modifier = Modifier.padding(2.dp))
 
         Text(
             text = artiestName.orEmpty(),
             modifier = Modifier.padding(horizontal = 24.dp),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            style = MaterialTheme.typography.bodySmall,
-            color = Color.Gray
+            style = TextStyle(
+                fontSize = 14.sp,
+                fontFamily = FontFamily(Font(R.font.roboto_regular)),
+                fontWeight = FontWeight.Normal,
+                color = Color(0xFF6B7280),
+            )
         )
 
         Spacer(modifier = Modifier.padding(12.dp))
@@ -346,7 +396,7 @@ fun PlayerComponents(
             }
         }
 
-        Spacer(modifier = Modifier.padding(8.dp))
+        Spacer(modifier = Modifier.padding(6.dp))
 
         Row(
             modifier = Modifier

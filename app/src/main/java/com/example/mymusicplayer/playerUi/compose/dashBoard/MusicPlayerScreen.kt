@@ -1,8 +1,11 @@
 package com.example.mymusicplayer.playerUi.compose.dashBoard
 
+import android.os.Build
 import android.util.Log
 import androidx.activity.compose.BackHandler
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,13 +17,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.MoreVert
@@ -35,58 +41,81 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.example.mymusicplayer.R
+import com.example.mymusicplayer.model.AudiusAlbum
 import com.example.mymusicplayer.model.AudiusTrack
+import com.example.mymusicplayer.playerUi.AlbumShimmerComponent
+import com.example.mymusicplayer.playerUi.MusicListShimmerComponent
+import com.example.mymusicplayer.playerUi.UiScreenState
+import com.example.mymusicplayer.playerUi.compose.playerScreen.PlayerTopBar
 
 @Preview
 @Composable
 fun MusicPlayerScreenPreview(){
     MusicPlayerScreen(
-        title = "Music",
-        artist = "Justin",
-        position = 0,
-        duration = 0,
-        isPlaying = true,
-        onNextClick = {},
-        onPreviousClick = {},
-        onPlayPauseClick = {},
-        onSeek = {},
+        isLoading = true,
         audiusMusicList = null,
+        audiusAlbumMusicList = null,
         currentTrack = null,
-        onClickMusic = {},
-        onClickPlayer = {}
+        onClickMusic = {_, _ ->},
+        onClickPlayer = {},
+        topAlbum = emptyList(),
+        onAlbumClick = {},
+        uiState = UiScreenState.DEFAULT_VIEW,
+        onChangeUiState = {}
     )
 }
 
 @Composable
 fun MusicPlayerScreen(
-    title: String,
-    artist: String,
-    position: Long,
-    duration: Long,
-    isPlaying: Boolean,
-    onPreviousClick: () -> Unit,
-    onPlayPauseClick: () -> Unit,
-    onNextClick: () -> Unit,
-    onSeek: (Long) -> Unit,
+    isLoading: Boolean?,
     audiusMusicList: List<AudiusTrack>?,
+    audiusAlbumMusicList: List<AudiusTrack>?,
     currentTrack: AudiusTrack?,
-    onClickMusic: (AudiusTrack?) -> Unit,
-    onClickPlayer: () -> Unit
+    onClickMusic: (AudiusTrack?, Boolean?) -> Unit,
+    onClickPlayer: () -> Unit,
+    topAlbum: List<AudiusAlbum>?,
+    onAlbumClick: (String) -> Unit,
+    uiState: UiScreenState,
+    onChangeUiState: (UiScreenState) -> Unit
 ){
+
+    //val uiState = remember { mutableStateOf(UiScreenState.DEFAULT_VIEW) }
+
     Scaffold(
+        containerColor = Color(0xFFE8ECEF),
         topBar = {
-            MusicScreenTopBar()
+            if (uiState == UiScreenState.DEFAULT_VIEW){
+                MusicScreenTopBar()
+            } else {
+                PlayerTopBar(
+                    isFromHome = true,
+                    onCloseClick = {
+                        onChangeUiState(UiScreenState.DEFAULT_VIEW)
+                    }
+                )
+            }
         },
         content = { paddingValues ->
             Box(
@@ -95,28 +124,74 @@ fun MusicPlayerScreen(
                     .padding(paddingValues)
                     .background(Color(0xFFE8ECEF))
             ) {
-                LazyColumn {
-                    item {
-                        Text(
-                            modifier = Modifier
-                                .padding(14.dp),
-                            text = "Music List",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                    }
-                    items(
-                        items = audiusMusicList ?: emptyList(),
-                        key = { it.id }
-                    ) { track ->
-                        MusicListComponent(
-                            name = track.title.orEmpty(),
-                            artiestName = track.artistName,
-                            time = formatDuration((track.duration?.toLong() ?: 0L) * 1000L),
-                            onClickMusic = {
-                                onClickMusic(track)
-                            },
-                            isPlaying = track.isPlaying
-                        )
+                Column {
+                    when (uiState){
+                        UiScreenState.DEFAULT_VIEW -> {
+                            PopularAlbum(
+                                isLoading = isLoading,
+                                topAlbum = topAlbum,
+                                onAlbumClick = {
+                                    onAlbumClick(it)
+                                    onChangeUiState(UiScreenState.ALBUM_VIEW)
+                                }
+                            )
+
+                            Spacer(modifier = Modifier.padding(6.dp))
+
+                            Text(
+                                modifier = Modifier
+                                    .padding(14.dp),
+                                text = "Music List",
+                                style = TextStyle(
+                                    fontSize = 16.sp,
+                                    fontFamily = FontFamily(Font(R.font.roboto_regular)),
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF374151),
+                                )
+                            )
+
+                            LazyColumn {
+                                if (isLoading == true){
+                                    item {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 24.dp, vertical = 8.dp)
+                                        ) {
+                                            repeat(5){
+                                                MusicListShimmerComponent()
+                                                Spacer(modifier = Modifier.padding(2.dp))
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    items(
+                                        items = audiusMusicList ?: emptyList(),
+                                        key = { it.id }
+                                    ) { track ->
+                                        MusicListComponent(
+                                            name = track.title.orEmpty(),
+                                            artiestName = track.artistName,
+                                            time = formatDuration((track.duration?.toLong() ?: 0L) * 1000L),
+                                            onClickMusic = {
+                                                onClickMusic(track, false)
+                                            },
+                                            isPlaying = track.isPlaying
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        UiScreenState.ALBUM_VIEW -> {
+                            AlbumScreen(
+                                isLoading = isLoading,
+                                audiusAlbumMusicList = audiusAlbumMusicList,
+                                onClickMusic = {
+                                    println("playAudiusTrack 1")
+                                    onClickMusic(it, true)
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -127,9 +202,9 @@ fun MusicPlayerScreen(
                     musicName = currentTrack?.title,
                     artiestName = currentTrack?.artistName,
                     isPlaying = currentTrack?.isPlaying,
-                    coverImage = currentTrack?.coverPhotoUrl,
+                    coverImage = currentTrack?.artworkUrl,
                     onPlayPauseClick = {
-                        onClickMusic(currentTrack)
+                        onClickMusic(currentTrack, uiState == UiScreenState.ALBUM_VIEW)
                     },
                     onClickPlayer = onClickPlayer
                 )
@@ -319,15 +394,24 @@ fun MusicListComponent(
                     text = name,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.titleSmall
+                    style = TextStyle(
+                        fontSize = 14.sp,
+                        fontFamily = FontFamily(Font(R.font.roboto_regular)),
+                        fontWeight = FontWeight.Normal,
+                        color = Color(0xFF374151),
+                    )
                 )
 
                 Text(
                     text = artiestName,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
+                    style = TextStyle(
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily(Font(R.font.roboto_regular)),
+                        fontWeight = FontWeight.Normal,
+                        color = Color(0xFF6B7280),
+                    )
                 )
             }
 
@@ -385,7 +469,12 @@ fun MusicScreenTopBar(){
                 modifier = Modifier
                     .padding(14.dp),
                 text = "Browse",
-                style = MaterialTheme.typography.titleLarge
+                style = TextStyle(
+                    fontSize = 22.sp,
+                    fontFamily = FontFamily(Font(R.font.roboto_regular)),
+                    fontWeight = FontWeight.Medium,
+                    color = Color.Black,
+                )
             )
         }
     }
@@ -423,6 +512,9 @@ fun PlayerComponent(
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .shadow(
+                elevation = 6.dp,
+            )
             .background(Color.White)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -478,15 +570,24 @@ fun PlayerComponent(
                     text = musicName.orEmpty(),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.titleSmall
+                    style = TextStyle(
+                        fontSize = 14.sp,
+                        fontFamily = FontFamily(Font(R.font.roboto_regular)),
+                        fontWeight = FontWeight.Normal,
+                        color = Color(0xFF374151),
+                    )
                 )
 
                 Text(
                     text = artiestName.orEmpty(),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
+                    style = TextStyle(
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily(Font(R.font.roboto_regular)),
+                        fontWeight = FontWeight.Normal,
+                        color = Color(0xFF6B7280),
+                    )
                 )
             }
 
@@ -524,3 +625,136 @@ fun PlayerComponent(
         }
     }
 }
+
+@Preview(showBackground = true)
+@Composable
+fun PopularAlbumPreview(){
+    PopularAlbum(
+        topAlbum = emptyList(),
+        isLoading = true,
+        onAlbumClick = {}
+    )
+}
+
+@Composable
+fun PopularAlbum(
+    topAlbum: List<AudiusAlbum>?,
+    isLoading: Boolean?,
+    onAlbumClick: (String) -> Unit
+){
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+    ) {
+        Text(
+            modifier = Modifier
+                .padding(14.dp),
+            text = "Popular Album",
+            style = TextStyle(
+                fontSize = 16.sp,
+                fontFamily = FontFamily(Font(R.font.roboto_regular)),
+                fontWeight = FontWeight.Medium,
+                color = Color(0xFF374151),
+            )
+        )
+
+        if (isLoading == true){
+            Row(
+                modifier = Modifier
+                    .padding(start = 14.dp)
+            ) {
+                repeat(4){
+                    AlbumShimmerComponent()
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+            }
+        } else {
+            LazyRow {
+                items(topAlbum?:emptyList()){
+                    PopularAlbumComponent(
+                        albumCover = it.coverPhotoUrl,
+                        albumId = it.id,
+                        onAlbumClick = onAlbumClick
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Preview
+@Composable
+fun PopularAlbumComponentPreview(){
+    PopularAlbumComponent(
+        albumCover = "",
+        albumId = "",
+        onAlbumClick = {}
+    )
+}
+
+@Composable
+fun PopularAlbumComponent(
+    albumCover: String?,
+    albumId: String,
+    onAlbumClick: (String) -> Unit
+){
+    var isLoading by remember(albumCover) {
+        mutableStateOf(true)
+    }
+
+    Box(
+        modifier = Modifier
+            .padding(start = 14.dp)
+            .height(132.dp)
+            .width(122.dp)
+            .clickable(
+                onClick = {
+                    onAlbumClick(albumId)
+                },
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() }
+            )
+            .then(
+                if (!isLoading){
+                    Modifier
+                        .shadow(6.dp, RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(8.dp))
+                } else {
+                    Modifier
+                }
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        if (albumCover?.isNotEmpty() == true){
+            AsyncImage(
+                model = albumCover,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+                fallback = painterResource(R.drawable.player_cover),
+                error = painterResource(R.drawable.player_cover),
+                onLoading = {
+                    isLoading = true
+                },
+                onSuccess = {
+                    isLoading = false
+                },
+                onError = {
+                    isLoading = false
+                }
+            )
+            if (isLoading){
+                AlbumShimmerComponent()
+            }
+        } else {
+            Image(
+                painter = painterResource(R.drawable.player_cover),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+    }
+}
+
+
