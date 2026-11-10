@@ -1,4 +1,4 @@
-package com.example.mymusicplayer.playerUi
+package com.example.mymusicplayer.playerUi.compose
 
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode

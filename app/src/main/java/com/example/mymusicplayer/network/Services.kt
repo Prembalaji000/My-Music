@@ -12,7 +12,9 @@ interface ApiService {
     @GET("tracks/search")
     suspend fun searchTracks(
         @Query("query") query: String,
-        @Query("limit") limit: Int = 20
+        @Query("limit") limit: Int = 20,
+        @Query("offset") offset: Int = 0,
+        @Query("sort_method") sortMethod: String = "relevant"
     ): AudiusResponse
 
     @GET("playlists/trending")

@@ -10,10 +10,10 @@
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@mipmap/ic_my_music"
         android:name=".MyApp"
         android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:roundIcon="@mipmap/ic_my_music_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.MyMusicPlayer">
         <activity
@@ -30,7 +30,7 @@
         </activity>
 
         <service
-            android:name=".MusicPlaybackService"
+            android:name=".MusicManager.MusicPlaybackService"
             android:foregroundServiceType="mediaPlayback"
             android:exported="true">
             <intent-filter>

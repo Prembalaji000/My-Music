@@ -61,7 +61,14 @@ fun MusicPlayerRouter(
                     uiState = dashBoardState.value,
                     onChangeUiState = {
                         dashBoardState.value = it
-                    }
+                    },
+                    searchValue = viewModel.searchValue,
+                    onSearchValueEntered = {
+                        viewModel.searchMusic(it)
+                    },
+                    isSearchLoader = uiState.isSearchLoader,
+                    searchAudiusList = uiState.searchAudiusList,
+                    trackState = uiState.trackState
                 )
             }
             MusicScreenViewState.PLAYER_SCREEN_VIEW -> {
@@ -79,10 +86,13 @@ fun MusicPlayerRouter(
                     isPlaying = uiState.currentTrack?.isPlaying,
                     onCloseClick = { viewModel.navigateToDashboard() },
                     onClickMusic = {
-                        viewModel.playPause(uiState.currentTrack, dashBoardState.value == UiScreenState.ALBUM_VIEW)
+                        viewModel.playPause(uiState.currentTrack, uiState.trackState)
                     },
-                    onPreviousClick = { viewModel.previous(dashBoardState.value == UiScreenState.ALBUM_VIEW) },
-                    onNextClick = { viewModel.next(dashBoardState.value == UiScreenState.ALBUM_VIEW) }
+                    onPreviousClick = { viewModel.previous() },
+                    onNextClick = { viewModel.next() },
+                    lyrics = uiState.lyrics,
+                    isLoadingLyric = uiState.isLyricsLoading,
+                    error = uiState.lyricsError
                 )
             }
             else -> {}

@@ -1,19 +1,26 @@
 package com.example.mymusicplayer.model
 
+import com.google.gson.annotations.SerializedName
+
 data class AudiusAlbumResponse(
     val data: List<AudiusAlbum> = emptyList()
 )
 
 data class AudiusAlbum(
     val id: String,
-    val playlist_name: String?,
+    @SerializedName("playlist_name")
+    val playlistName: String?,
     val description: String?,
-    val is_album: Boolean,
+    @SerializedName("is_album")
+    val isAlbum: Boolean,
     val artwork: AudiusArtwork?,
     val isPlaying: Boolean = false,
-    val profile_picture: AudiusCoverPhoto? = null,
-    val track_count: Int?,
-    val total_play_count: Int?,
+    @SerializedName("profile_picture")
+    val profilePicture: AudiusCoverPhoto? = null,
+    @SerializedName("track_count")
+    val trackCount: Int?,
+    @SerializedName("total_play_count")
+    val totalPlayCount: Int?,
     val user: AudiusUser?
 ) {
     val artistName: String
@@ -26,8 +33,8 @@ data class AudiusAlbum(
             ?: artwork?.url
 
     val coverPhotoUrl: String?
-        get() = profile_picture?.get("2000x")
-            ?: profile_picture?.get("640x")
-            ?: profile_picture?.url
+        get() = profilePicture?.get("2000x")
+            ?: profilePicture?.get("640x")
+            ?: profilePicture?.url
             ?: user?.coverPhotoUrl
 }

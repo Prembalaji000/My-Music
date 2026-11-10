@@ -1,10 +1,11 @@
 package com.example.mymusicplayer.playerUi.compose.dashBoard
 
-import android.os.Build
 import android.util.Log
-import androidx.activity.compose.BackHandler
-import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,7 +29,11 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Pause
@@ -35,11 +41,18 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,24 +62,34 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.example.mymusicplayer.R
+import com.example.mymusicplayer.Utils.NetworkConnectionState
+import com.example.mymusicplayer.Utils.NetworkErrorBar
+import com.example.mymusicplayer.Utils.rememberConnectivityState
 import com.example.mymusicplayer.model.AudiusAlbum
 import com.example.mymusicplayer.model.AudiusTrack
-import com.example.mymusicplayer.playerUi.AlbumShimmerComponent
-import com.example.mymusicplayer.playerUi.MusicListShimmerComponent
+import com.example.mymusicplayer.playerUi.MusicListState
+import com.example.mymusicplayer.playerUi.compose.AlbumShimmerComponent
+import com.example.mymusicplayer.playerUi.compose.MusicListShimmerComponent
 import com.example.mymusicplayer.playerUi.UiScreenState
 import com.example.mymusicplayer.playerUi.compose.playerScreen.PlayerTopBar
 
@@ -83,31 +106,84 @@ fun MusicPlayerScreenPreview(){
         topAlbum = emptyList(),
         onAlbumClick = {},
         uiState = UiScreenState.DEFAULT_VIEW,
-        onChangeUiState = {}
+        onChangeUiState = {},
+        searchValue = "",
+        onSearchValueEntered = {},
+        isSearchLoader = false,
+        searchAudiusList = emptyList(),
+        trackState = MusicListState.HOME_AUDIUS_LIST
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MusicPlayerScreen(
     isLoading: Boolean?,
     audiusMusicList: List<AudiusTrack>?,
     audiusAlbumMusicList: List<AudiusTrack>?,
     currentTrack: AudiusTrack?,
-    onClickMusic: (AudiusTrack?, Boolean?) -> Unit,
+    onClickMusic: (AudiusTrack?, MusicListState?) -> Unit,
     onClickPlayer: () -> Unit,
     topAlbum: List<AudiusAlbum>?,
     onAlbumClick: (String) -> Unit,
     uiState: UiScreenState,
-    onChangeUiState: (UiScreenState) -> Unit
+    onChangeUiState: (UiScreenState) -> Unit,
+    searchValue: String,
+    onSearchValueEntered: (String) -> Unit,
+    isSearchLoader: Boolean?,
+    searchAudiusList: List<AudiusTrack>?,
+    trackState: MusicListState?
 ){
 
-    //val uiState = remember { mutableStateOf(UiScreenState.DEFAULT_VIEW) }
+    var sheetState by remember { mutableStateOf(false) }
+    val homeModelBottomSheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { newValue ->
+            newValue != SheetValue.Hidden
+        }
+    )
+
+    if (sheetState) {
+        ModalBottomSheet(
+            sheetState = homeModelBottomSheetState,
+            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+            tonalElevation = 8.dp,
+            containerColor = Color(0xFFE8ECEF),
+            content = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.96f)
+                ){
+                    SearchScreen(
+                        searchValue = searchValue,
+                        onSearchValueEntered = onSearchValueEntered,
+                        onClose = {
+                            sheetState = false
+                        },
+                        isSearchLoader = isSearchLoader,
+                        searchAudiusList = searchAudiusList,
+                        onClickMusic = {
+                            onClickMusic(it, MusicListState.SEARCH_AUDIUS_LIST)
+                        }
+                    )
+                }
+            },
+            onDismissRequest = {
+                sheetState = false
+            }
+        )
+    }
 
     Scaffold(
         containerColor = Color(0xFFE8ECEF),
         topBar = {
             if (uiState == UiScreenState.DEFAULT_VIEW){
-                MusicScreenTopBar()
+                MusicScreenTopBar(
+                    onSearchClick = {
+                        sheetState = true
+                    }
+                )
             } else {
                 PlayerTopBar(
                     isFromHome = true,
@@ -174,7 +250,7 @@ fun MusicPlayerScreen(
                                             artiestName = track.artistName,
                                             time = formatDuration((track.duration?.toLong() ?: 0L) * 1000L),
                                             onClickMusic = {
-                                                onClickMusic(track, false)
+                                                onClickMusic(track, MusicListState.HOME_AUDIUS_LIST)
                                             },
                                             isPlaying = track.isPlaying
                                         )
@@ -187,8 +263,7 @@ fun MusicPlayerScreen(
                                 isLoading = isLoading,
                                 audiusAlbumMusicList = audiusAlbumMusicList,
                                 onClickMusic = {
-                                    println("playAudiusTrack 1")
-                                    onClickMusic(it, true)
+                                    onClickMusic(it, MusicListState.ALBUM_AUDIUS_LIST)
                                 }
                             )
                         }
@@ -204,7 +279,7 @@ fun MusicPlayerScreen(
                     isPlaying = currentTrack?.isPlaying,
                     coverImage = currentTrack?.artworkUrl,
                     onPlayPauseClick = {
-                        onClickMusic(currentTrack, uiState == UiScreenState.ALBUM_VIEW)
+                        onClickMusic(currentTrack, trackState)
                     },
                     onClickPlayer = onClickPlayer
                 )
@@ -429,53 +504,77 @@ fun MusicListComponent(
 @Preview
 @Composable
 fun MusicScreenTopBarPreview(){
-    MusicScreenTopBar()
+    MusicScreenTopBar(
+        onSearchClick = {}
+    )
 }
 
 
 @Composable
-fun MusicScreenTopBar(){
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xFFE8ECEF))
-            .padding(top = 26.dp)
-    ) {
-        Column {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                IconButton(
-                    onClick = {}
+fun MusicScreenTopBar(
+    onSearchClick: () -> Unit
+){
+    val networkStatus by rememberConnectivityState()
+
+    Column {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFFE8ECEF))
+                .padding(top = 26.dp)
+        ) {
+            Column {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Search,
-                        contentDescription = null
+                    IconButton(
+                        onClick = onSearchClick
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Search,
+                            contentDescription = null
+                        )
+                    }
+                    Text(
+                        text = "My Music Player",
+                        style = TextStyle(
+                            fontSize = 20.sp,
+                            fontFamily = FontFamily(Font(R.font.roboto_regular)),
+                            fontWeight = FontWeight.Medium,
+                            color = Color.Black,
+                        )
                     )
+                    IconButton(
+                        onClick = {}
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.MoreVert,
+                            contentDescription = null
+                        )
+                    }
                 }
-                IconButton(
-                    onClick = {}
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.MoreVert,
-                        contentDescription = null
+               /* Text(
+                    modifier = Modifier
+                        .padding(14.dp),
+                    text = "Browse",
+                    style = TextStyle(
+                        fontSize = 22.sp,
+                        fontFamily = FontFamily(Font(R.font.roboto_regular)),
+                        fontWeight = FontWeight.Medium,
+                        color = Color.Black,
                     )
-                }
+                )*/
             }
-            Text(
-                modifier = Modifier
-                    .padding(14.dp),
-                text = "Browse",
-                style = TextStyle(
-                    fontSize = 22.sp,
-                    fontFamily = FontFamily(Font(R.font.roboto_regular)),
-                    fontWeight = FontWeight.Medium,
-                    color = Color.Black,
-                )
-            )
+        }
+        AnimatedVisibility(
+            visible = networkStatus == NetworkConnectionState.Unavailable,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
+        ) {
+            NetworkErrorBar()
         }
     }
 }
@@ -757,4 +856,165 @@ fun PopularAlbumComponent(
     }
 }
 
+@Preview
+@Composable
+fun SearchScreenPreview(){
+    SearchScreen(
+        searchValue = "",
+        onSearchValueEntered = {},
+        onClose = {},
+        isSearchLoader = false,
+        searchAudiusList = emptyList(),
+        onClickMusic = {}
+    )
+}
+
+@Composable
+fun SearchScreen(
+    searchValue: String,
+    onSearchValueEntered: (String) -> Unit,
+    onClose: () -> Unit,
+    isSearchLoader: Boolean?,
+    searchAudiusList: List<AudiusTrack>?,
+    onClickMusic: (AudiusTrack) -> Unit
+){
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFE8ECEF))
+    ) {
+        SearchBar(
+            searchValue = searchValue,
+            onSearchValueEntered = onSearchValueEntered,
+            onClose = onClose,
+            isSearchLoader = isSearchLoader
+        )
+        LazyColumn {
+            if (isSearchLoader == true && searchAudiusList?.isEmpty() == true){
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 8.dp)
+                    ) {
+                        repeat(5){
+                            MusicListShimmerComponent()
+                            Spacer(modifier = Modifier.padding(2.dp))
+                        }
+                    }
+                }
+            } else {
+                items(
+                    items = searchAudiusList ?: emptyList(),
+                    key = { it.id }
+                ) { track ->
+                    MusicListComponent(
+                        name = track.title.orEmpty(),
+                        artiestName = track.artistName,
+                        time = formatDuration((track.duration?.toLong() ?: 0L) * 1000L),
+                        onClickMusic = {
+                            onClickMusic(track)
+                        },
+                        isPlaying = track.isPlaying
+                    )
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+fun SearchBar(
+    searchValue: String,
+    onSearchValueEntered: (String) -> Unit,
+    onClose: () -> Unit,
+    isSearchLoader: Boolean?
+){
+    val focusManager = LocalFocusManager.current
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(end = 16.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Spacer(modifier = Modifier.width(4.dp))
+        IconButton(
+            onClick = onClose
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.ArrowBack,
+                contentDescription = "arrow back",
+                tint = colorResource(id = R.color.grey_color)
+            )
+        }
+        Spacer(modifier = Modifier.width(4.dp))
+        OutlinedTextField(
+            value = searchValue,
+            onValueChange = { value ->
+                onSearchValueEntered(value)
+            },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Outlined.Search,
+                    contentDescription = null,
+                    tint = colorResource(id = R.color.buzz_txt_color)
+                )
+            },
+            textStyle = TextStyle(
+                fontSize = 14.sp,
+                fontFamily = FontFamily(Font(R.font.roboto_regular)),
+                fontWeight = FontWeight.Normal,
+                color = Color(0xFF9CA3AF)
+            ),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Text,
+                imeAction = ImeAction.Done
+            ),
+            keyboardActions = KeyboardActions(
+                onNext = {
+                    focusManager.moveFocus(FocusDirection.Down)
+                },
+                onDone = {
+                    focusManager.clearFocus(force = true)
+                }
+            ),
+            shape = RoundedCornerShape(8.dp),
+            trailingIcon = {
+                if (isSearchLoader == true){
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = colorResource(R.color.digi_blue)
+                    )
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp)
+                .height(52.dp),
+            placeholder = {
+                Text(
+                    text = "What do you want to listen to?",
+                    color = colorResource(R.color.college_code_text_hint),
+                    style = TextStyle(
+                        fontSize = 14.sp,
+                        fontFamily = FontFamily(Font(R.font.roboto_regular)),
+                        fontWeight = FontWeight.Normal,
+                        color = colorResource(id = R.color.buzz_txt_color)
+                    ),
+                )
+            },
+            colors = TextFieldDefaults.colors(
+                focusedIndicatorColor = colorResource(id = R.color.digi_blue),
+                unfocusedIndicatorColor = colorResource(id = R.color.chatly_search_bar_border),
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent,
+                cursorColor = colorResource(R.color.digi_blue),
+            ),
+        )
+    }
+}
 

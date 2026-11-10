@@ -16,7 +16,8 @@ data class AudiusTrack(
     val title: String?,
     val duration: Int?,
     val artwork: AudiusArtwork?,
-    val cover_photo: AudiusCoverPhoto? = null,
+    @SerializedName("cover_photo")
+    val coverPhoto: AudiusCoverPhoto? = null,
     val user: AudiusUser?,
     val isPlaying: Boolean = false,
     @SerializedName("album_backlink")
@@ -32,9 +33,9 @@ data class AudiusTrack(
             ?: artwork?.url
 
     val coverPhotoUrl: String?
-        get() = cover_photo?.get("2000x")
-            ?: cover_photo?.get("640x")
-            ?: cover_photo?.url
+        get() = coverPhoto?.get("2000x")
+            ?: coverPhoto?.get("640x")
+            ?: coverPhoto?.url
             ?: user?.coverPhotoUrl
 }
 
@@ -109,12 +110,13 @@ class AudiusCoverPhotoDeserializer : JsonDeserializer<AudiusCoverPhoto> {
 data class AudiusUser(
     val id: String?,
     val name: String?,
-    val cover_photo: AudiusCoverPhoto? = null
+    @SerializedName("cover_photo")
+    val coverPhoto: AudiusCoverPhoto? = null
 ) {
     val coverPhotoUrl: String?
-        get() = cover_photo?.get("2000x")
-            ?: cover_photo?.get("640x")
-            ?: cover_photo?.url
+        get() = coverPhoto?.get("2000x")
+            ?: coverPhoto?.get("640x")
+            ?: coverPhoto?.url
 }
 
 data class PlayListItem(

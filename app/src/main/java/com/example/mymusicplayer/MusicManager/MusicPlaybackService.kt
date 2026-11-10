@@ -1,4 +1,4 @@
-package com.example.mymusicplayer
+package com.example.mymusicplayer.MusicManager
 
 import androidx.annotation.OptIn
 import androidx.media3.common.MediaItem

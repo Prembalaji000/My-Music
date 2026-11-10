@@ -3,6 +3,7 @@ package com.example.mymusicplayer.playerUi.compose.playerScreen
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,18 +13,27 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -56,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.example.mymusicplayer.R
+import com.example.mymusicplayer.model.LyricLine
 import com.example.mymusicplayer.playerUi.compose.dashBoard.formatDuration
 
 @Preview
@@ -75,6 +86,9 @@ fun PlayerUiScreenPreview(){
         onClickMusic = {},
         onPreviousClick = {},
         onNextClick = {},
+        lyrics = emptyList(),
+        isLoadingLyric = false,
+        error = ""
     )
 }
 
@@ -93,6 +107,9 @@ fun PlayerScreen(
     onClickMusic: () -> Unit,
     onPreviousClick: () -> Unit,
     onNextClick: () -> Unit,
+    lyrics: List<LyricLine>,
+    isLoadingLyric: Boolean,
+    error: String?,
 ){
     Scaffold(
         containerColor = Color.White,
@@ -119,7 +136,10 @@ fun PlayerScreen(
                     isPlaying = isPlaying,
                     onClickMusic = onClickMusic,
                     onPreviousClick = onPreviousClick,
-                    onNextClick = onNextClick
+                    onNextClick = onNextClick,
+                    lyrics = lyrics,
+                    isLoadingLyric = isLoadingLyric,
+                    error = error
                 )
             }
         }
@@ -201,6 +221,9 @@ fun PlayerComponentsPreview(){
         onClickMusic = {},
         onPreviousClick = {},
         onNextClick = {},
+        lyrics = emptyList(),
+        isLoadingLyric = false,
+        error = ""
     )
 }
 
@@ -219,6 +242,9 @@ fun PlayerComponents(
     onClickMusic: () -> Unit,
     onPreviousClick: () -> Unit,
     onNextClick: () -> Unit,
+    lyrics: List<LyricLine>,
+    isLoadingLyric: Boolean,
+    error: String?,
 ){
     val totalDurMs = if ((duration ?: 0L) > 0L) {
         duration ?: 0L
@@ -249,6 +275,7 @@ fun PlayerComponents(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.White)
+            .verticalScroll(rememberScrollState())
             .padding(vertical = 42.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -448,5 +475,171 @@ fun PlayerComponents(
                 )
             }
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        LyricsSection(
+            lyrics = lyrics,
+            currentPosMs = currentPosMs,
+            isLoading = isLoadingLyric,
+            error = error,
+            onSeek = onSeek
+        )
+
+        /*LyricsSection(
+            musicName = musicName,
+            artiestName = artiestName,
+            currentPosMs = currentPosMs,
+            onSeek = onSeek
+        )*/
     }
 }
+
+@Composable
+fun LyricsSection(
+    lyrics: List<LyricLine>,
+    currentPosMs: Long,
+    isLoading: Boolean,
+    error: String?,
+    onSeek: (Long) -> Unit
+) {
+    var isExpanded by rememberSaveable {
+        mutableStateOf(false)
+    }
+
+    val activeIndex = remember(currentPosMs, lyrics) {
+        lyrics.indexOfLast { it.timestampMs <= currentPosMs }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFFF4F0FF))
+            .clickable { isExpanded = !isExpanded }
+            .padding(16.dp)
+    ) {
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.MusicNote,
+                    contentDescription = "Lyrics",
+                    tint = Color(0xFF654BFF),
+                    modifier = Modifier.size(20.dp)
+                )
+
+                Text(
+                    text = "Lyrics",
+                    style = TextStyle(
+                        fontSize = 16.sp,
+                        fontFamily = FontFamily(Font(R.font.roboto_regular)),
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF1F2937)
+                    )
+                )
+            }
+
+            Icon(
+                imageVector = if (isExpanded) {
+                    Icons.Rounded.KeyboardArrowUp
+                } else {
+                    Icons.Rounded.KeyboardArrowDown
+                },
+                contentDescription = null,
+                tint = Color(0xFF654BFF),
+                modifier = Modifier.size(24.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        when {
+            isLoading -> {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    color = Color(0xFF654BFF)
+                )
+            }
+
+            error != null -> {
+                Text(
+                    text = error,
+                    fontSize = 14.sp,
+                    fontFamily = FontFamily(Font(R.font.roboto_regular)),
+                    color = Color.Gray
+                )
+            }
+
+            lyrics.isEmpty() -> {
+                Text(
+                    text = "No lyrics available",
+                    fontFamily = FontFamily(Font(R.font.roboto_regular)),
+                    fontSize = 14.sp,
+                    color = Color.Gray
+                )
+            }
+
+            !isExpanded -> {
+                Text(
+                    text = lyrics.getOrNull(activeIndex)
+                        ?.text.orEmpty(),
+                    fontSize = 14.sp,
+                    fontFamily = FontFamily(Font(R.font.roboto_regular)),
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF654BFF),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            else -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 320.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    itemsIndexed(lyrics) { index, lyric ->
+                        val isActive = index == activeIndex
+
+                        Text(
+                            text = lyric.text,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    onSeek(lyric.timestampMs)
+                                }
+                                .padding(
+                                    vertical = 4.dp,
+                                    horizontal = 6.dp
+                                ),
+                            fontFamily = FontFamily(Font(R.font.roboto_regular)),
+                            fontSize = if (isActive) 16.sp else 14.sp,
+                            fontWeight = if (isActive) {
+                                FontWeight.Bold
+                            } else {
+                                FontWeight.Normal
+                            },
+                            color = if (isActive) {
+                                Color(0xFF654BFF)
+                            } else {
+                                Color(0xFF6B7280)
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+

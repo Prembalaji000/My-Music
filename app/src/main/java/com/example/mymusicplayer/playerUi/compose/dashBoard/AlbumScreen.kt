@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -38,7 +37,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.example.mymusicplayer.R
 import com.example.mymusicplayer.model.AudiusTrack
-import com.example.mymusicplayer.playerUi.MusicListShimmerComponent
+import com.example.mymusicplayer.playerUi.compose.MusicListShimmerComponent
 
 @Preview(showBackground = true)
 @Composable
